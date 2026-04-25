@@ -25,7 +25,7 @@ classdef simnibs < matlab.apps.AppBase
 
         % Button pushed function: TIopt_eeg
         function TIopt_eegPushed(app, event)
-            
+            run("opt_eeg.m")
         end
 
         % Button pushed function: TIopt_pos
