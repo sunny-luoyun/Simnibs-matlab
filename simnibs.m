@@ -20,7 +20,7 @@ classdef simnibs < matlab.apps.AppBase
 
         % Button pushed function: TIstimulate
         function TIstimulatePushed(app, event)
-            
+            run("TI.m")
         end
 
         % Button pushed function: TIopt_eeg
