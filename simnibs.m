@@ -27,6 +27,11 @@ classdef simnibs < matlab.apps.AppBase
         function TIopt_eegPushed(app, event)
             
         end
+
+        % Button pushed function: TIopt_pos
+        function TIopt_posPushed(app, event)
+            
+        end
     end
 
     % Component initialization
@@ -80,6 +85,7 @@ classdef simnibs < matlab.apps.AppBase
 
             % Create TIopt_pos
             app.TIopt_pos = uibutton(app.UIFigure, 'push');
+            app.TIopt_pos.ButtonPushedFcn = createCallbackFcn(app, @TIopt_posPushed, true);
             app.TIopt_pos.FontSize = 14;
             app.TIopt_pos.Position = [31 19 170 52];
             app.TIopt_pos.Text = 'TI优化(坐标点位)';

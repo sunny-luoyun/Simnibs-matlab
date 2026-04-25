@@ -388,7 +388,7 @@ classdef TI < matlab.apps.AppBase
 
         % watch_efield callback: query average field in ROI
         function watchEfieldCallback(app, ~, ~)
-            % Get ROI coordinates
+            % 获取 ROI 坐标
             x_str = app.MNI_coordsX.Value;
             y_str = app.MNI_coordsY.Value;
             z_str = app.MNI_coordsZ.Value;
@@ -401,7 +401,7 @@ classdef TI < matlab.apps.AppBase
                 uialert(app.UIFigure, 'MNI 坐标必须为数值。', '格式错误');
                 return;
             end
-            
+        
             radius_str = app.radius.Value;
             if isempty(radius_str)
                 uialert(app.UIFigure, '请输入 ROI 半径 (r)。', '半径缺失');
@@ -412,7 +412,7 @@ classdef TI < matlab.apps.AppBase
                 uialert(app.UIFigure, '半径必须为正数。', '参数错误');
                 return;
             end
-            
+        
             output_folder = app.output_folder.Value;
             subpath = app.subpath.Value;
             if isempty(output_folder) || ~isfolder(output_folder)
@@ -423,12 +423,94 @@ classdef TI < matlab.apps.AppBase
                 uialert(app.UIFigure, 'm2m 文件夹无效，无法查询电场。', '路径错误');
                 return;
             end
-            
+        
             try
-                avg_TI = look_efield(output_folder, subpath, MNI_coords, radius);
-                msg = sprintf('MNI坐标: [%.1f, %.1f, %.1f]\n半径 %.0f mm 的 ROI 内\n平均电场大小为: %.4f V/m', ...
-                    MNI_coords(1), MNI_coords(2), MNI_coords(3), radius, avg_TI);
-                uialert(app.UIFigure, msg, '查询结果');
+                % ----- 调用增强后的 look_efield，返回完整结果结构体 -----
+                result = look_efield(output_folder, subpath, MNI_coords, radius);
+        
+                % ----- 将所有信息打印到命令行窗口 -----
+                fprintf('\n========== TI 包络电场查询结果 ==========\n');
+                fprintf('被试: %s\n', result.info.subject);
+                fprintf('MNI 坐标: [%.1f, %.1f, %.1f]\n', result.info.MNI_coords);
+                fprintf('被试空间坐标: [%.2f, %.2f, %.2f]\n', result.info.subject_coords);
+                fprintf('ROI 半径: %.0f mm\n', result.info.radius_mm);
+                fprintf('场值名称: %s\n', result.info.field_name);
+                fprintf('----------------------------------------\n');
+        
+                % --- ROI 内统计 ---
+                if ~isnan(result.roi.avg)
+                    fprintf('ROI 内灰质单元数: %d\n', result.roi.num_elements);
+                    fprintf('ROI 体积: %.2f mm³\n', result.roi.volume);
+                    fprintf('ROI 内电场平均值 (体积加权): %.4f V/m\n', result.roi.avg);
+                    fprintf('ROI 内标准差 (体积加权): %.4f V/m\n', result.roi.std);
+                    fprintf('ROI 内中位数: %.4f V/m\n', result.roi.median);
+                    fprintf('ROI 内最小值: %.4f V/m\n', result.roi.min);
+                    fprintf('ROI 内最大值: %.4f V/m\n', result.roi.max);
+                else
+                    fprintf('ROI 内无有效单元，请检查坐标或半径。\n');
+                end
+        
+                % --- ROI 外（灰质其余部分）统计 ---
+                if ~isnan(result.non_roi.avg)
+                    fprintf('\n--- ROI 外（灰质其余部分） ---\n');
+                    fprintf('单元数: %d\n', result.non_roi.num_elements);
+                    fprintf('体积: %.2f mm³\n', result.non_roi.volume);
+                    fprintf('平均值 (体积加权): %.4f V/m\n', result.non_roi.avg);
+                    fprintf('标准差 (体积加权): %.4f V/m\n', result.non_roi.std);
+                    fprintf('中位数: %.4f V/m\n', result.non_roi.median);
+                    fprintf('最小值: %.4f V/m\n', result.non_roi.min);
+                    fprintf('最大值: %.4f V/m\n', result.non_roi.max);
+                else
+                    fprintf('ROI 外无灰质单元（ROI 覆盖整个灰质？）\n');
+                end
+        
+                % --- 全脑灰质统计 ---
+                fprintf('\n--- 全脑灰质 ---\n');
+                fprintf('总单元数: %d\n', length(result.gm_field));
+                fprintf('总体积: %.2f mm³\n', result.whole_gm.volume);
+                fprintf('平均值 (体积加权): %.4f V/m\n', result.whole_gm.avg);
+                fprintf('标准差 (体积加权): %.4f V/m\n', result.whole_gm.std);
+                fprintf('中位数: %.4f V/m\n', result.whole_gm.median);
+                fprintf('最小值: %.4f V/m\n', result.whole_gm.min);
+                fprintf('最大值: %.4f V/m\n', result.whole_gm.max);
+        
+                % --- 新增：峰值电场信息 ---
+                fprintf('\n--- 全脑灰质峰值电场 ---\n');
+                fprintf('峰值强度: %.4f V/m\n', result.peak.value);
+                fprintf('峰值空间坐标 (被试空间): [%.2f, %.2f, %.2f] mm\n', ...
+                        result.peak.subject_coord(1), result.peak.subject_coord(2), result.peak.subject_coord(3));
+                fprintf('峰值 MNI 坐标: [%.2f, %.2f, %.2f] mm\n', ...
+                        result.peak.mni_coord(1), result.peak.mni_coord(2), result.peak.mni_coord(3));
+        
+                % --- 新增：调制深度与半峰全宽聚焦体积 ---
+                fprintf('\n--- 调制深度与聚焦评价指标 ---\n');
+                if ~isnan(result.modulation.depth)
+                    fprintf('调制深度 (ROI内最大-最小)/平均: %.4f\n', result.modulation.depth);
+                else
+                    fprintf('调制深度: 无法计算 (ROI 内平均电场为0或无效)\n');
+                end
+                fprintf('半峰全宽 (FWHM) 阈值: %.4f V/m\n', result.modulation.fwhm_threshold);
+                fprintf('超阈值聚焦总体积 (全脑灰质): %.2f mm³\n', result.modulation.focus_volume_total_mm3);
+                fprintf('其中位于 ROI 内的聚焦体积: %.2f mm³\n', result.modulation.focus_volume_roi_mm3);
+                if ~isnan(result.modulation.focus_ratio)
+                    fprintf('靶区聚焦占比 (ROI内聚焦体积/总体积): %.2f %%\n', result.modulation.focus_ratio * 100);
+                else
+                    fprintf('靶区聚焦占比: 无法计算\n');
+                end
+                if ~isnan(result.modulation.depth_over_focus_volume)
+                    fprintf('综合指标 (调制深度 / 聚焦总体积): %.6f\n', result.modulation.depth_over_focus_volume);
+                else
+                    fprintf('综合指标: 无法计算\n');
+                end
+        
+                % --- 可选增强比 ---
+                if ~isnan(result.roi.avg) && ~isnan(result.whole_gm.avg) && result.whole_gm.avg ~= 0
+                    enhancement = result.roi.avg / result.whole_gm.avg;
+                    fprintf('\n>>> ROI 增强比 (ROI_avg / 全脑灰质_avg): %.2f\n', enhancement);
+                end
+        
+                fprintf('========================================\n\n');
+        
             catch ME
                 uialert(app.UIFigure, ['查询失败：' ME.message], '错误');
             end
