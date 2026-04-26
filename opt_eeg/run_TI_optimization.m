@@ -9,6 +9,7 @@ function run_TI_optimization(m2m_folder, output_root, mni_target, ...
 
     log_file = fullfile(output_root, 'ga_log.txt');
     checkpoint_file = fullfile(output_root, 'ga_checkpoint.mat');
+    eval_log_file = fullfile(output_root, 'evaluated_individuals.csv'); 
 
     % ========== 初始化 ==========
     if ~exist(output_root, 'dir')
@@ -39,7 +40,7 @@ function run_TI_optimization(m2m_folder, output_root, mni_target, ...
     % ========== 运行遗传算法 ==========
     [best_ind, best_fit] = genetic_algorithm_core(eval_func, electrode_pool, ...
         population_size, max_generations, crossover_rate, mutation_rate, ...
-        elite_size, checkpoint_file, log_file);
+        elite_size, checkpoint_file, log_file, eval_log_file);
 
     if ~isempty(best_ind)
         fprintf('最优电极组合: %s\n', strjoin(best_ind, ','));

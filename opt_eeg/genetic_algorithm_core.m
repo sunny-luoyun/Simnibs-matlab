@@ -1,6 +1,7 @@
 function [best_individual, best_fitness] = genetic_algorithm_core(...
     fitness_func, electrode_pool, population_size, max_generations, ...
-    crossover_rate, mutation_rate, elite_size, checkpoint_file, log_file_path)
+    crossover_rate, mutation_rate, elite_size, checkpoint_file, log_file_path, ...
+    eval_log_file) 
 % GENETIC_ALGORITHM_CORE  遗传算法框架（电极优化）
 %   fitness_func     : 适应度函数句柄 @(individual) -> scalar fitness
 %   electrode_pool   : 所有可用电极名称的 cell array
@@ -33,7 +34,7 @@ function [best_individual, best_fitness] = genetic_algorithm_core(...
         fprintf(log_fid, '\nGeneration %d:\n', gen+1);
 
         % 计算适应度（利用缓存）
-        [fitness, eval_info] = calculate_fitness(population, fitness_func, fitness_cache, log_fid);
+        [fitness, eval_info] = calculate_fitness(population, fitness_func, fitness_cache, log_fid, eval_log_file);
         % 在此之后立即打印本代所有个体的详信息（控制台 + 日志）
         fprintf('------------  Generation %d 详情  ------------\n', gen+1);
         for i = 1:length(population)
@@ -117,19 +118,16 @@ function s = cell2str(c)
     s = strjoin(c, ',');
 end
 
-function [fitness, info] = calculate_fitness(pop, func, cache, fid)
-% 现在 func 应该返回 [f, info] 两个输出
-% 新增输出 info : 一个 cell 数组，长度与 pop 相同，每个元素是一个结构体（来自 eval_individual）
+function [fitness, info] = calculate_fitness(pop, func, cache, fid, eval_log_file)
 
     N = length(pop);
     fitness = zeros(1, N);
-    info = cell(1, N);          % 新增
+    info = cell(1, N);
     uncached_idx = [];
     for i = 1:N
         key = cell2str(pop{i});
         if isKey(cache, key)
             fitness(i) = cache(key);
-            % 缓存命中的个体没有额外信息，给个空结构体
             info{i} = struct();
             fprintf(fid, 'Cached: %s -> %f\n', key, fitness(i));
         else
@@ -140,16 +138,17 @@ function [fitness, info] = calculate_fitness(pop, func, cache, fid)
     if ~isempty(uncached_idx)
         M = length(uncached_idx);
         temp_fit = zeros(1, M);
-        temp_info = cell(1, M);     % 存储额外信息
+        temp_info = cell(1, M);
         pop_uncached = pop(uncached_idx);
 
         parfor j = 1:M
-            [temp_fit(j), temp_info{j}] = func(pop_uncached{j});  % 调用返回两个值
+            [temp_fit(j), temp_info{j}] = func(pop_uncached{j});
         end
 
-        % 放回原数组
         fitness(uncached_idx) = temp_fit;
         info(uncached_idx)    = temp_info;
+     
+        write_eval_log(eval_log_file, pop_uncached, temp_fit, temp_info);
 
         for j = 1:M
             idx = uncached_idx(j);
@@ -284,4 +283,47 @@ function save_state(pop, fit, gen, cache, global_best_ind, global_best_fit, file
     global_best_fitness = global_best_fit;   
     save(file, 'population', 'fitness', 'generation', 'cache_keys', 'cache_values', ...
               'global_best_individual', 'global_best_fitness');
+end
+
+function write_eval_log(filepath, pop, fitness, info)
+% 将新评估的个体结果追加写入 CSV 文件
+% 若文件不存在则自动创建并写入表头
+    if isempty(pop)
+        return;
+    end
+
+    file_exists = exist(filepath, 'file');
+    fid = fopen(filepath, 'a');
+    if fid == -1
+        warning('无法打开评估记录文件: %s', filepath);
+        return;
+    end
+
+    % 如果文件刚被创建或不存在，先写表头
+    if ~file_exists || ftell(fid) == 0
+        fprintf(fid, 'C1E1,C1E2,C2E1,C2E2,Fitness,roi_avg,focus_ratio,mod_depth,focus_vol_total,peak_mni_x,peak_mni_y,peak_mni_z\n');
+    end
+
+    for i = 1:length(pop)
+        comb = strjoin(pop{i}, ',');
+        fit = fitness(i);
+        inf = info{i};
+        % 安全获取各字段，若缺失则填 NaN
+        roi = getfield_safe(inf, 'roi_avg', NaN);
+        foc = getfield_safe(inf, 'focus_ratio', NaN);
+        dep = getfield_safe(inf, 'mod_depth', NaN);
+        vol = getfield_safe(inf, 'focus_vol_total', NaN);
+        peak = getfield_safe(inf, 'peak_mni', [NaN NaN NaN]);
+        fprintf(fid, '%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n', ...
+            comb, fit, roi, foc, dep, vol, peak(1), peak(2), peak(3));
+    end
+    fclose(fid);
+end
+
+function val = getfield_safe(s, field, default)
+    if isstruct(s) && isfield(s, field)
+        val = s.(field);
+    else
+        val = default;
+    end
 end
