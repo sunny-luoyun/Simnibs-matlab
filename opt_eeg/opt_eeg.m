@@ -8,12 +8,7 @@ classdef opt_eeg < matlab.apps.AppBase
         Label_11           matlab.ui.control.Label
         target_strength    matlab.ui.control.NumericEditField
         VmEditFieldLabel   matlab.ui.control.Label
-        W3                 matlab.ui.control.NumericEditField
-        W3EditFieldLabel   matlab.ui.control.Label
-        W2                 matlab.ui.control.NumericEditField
-        W2EditFieldLabel   matlab.ui.control.Label
-        W1                 matlab.ui.control.NumericEditField
-        W1EditFieldLabel   matlab.ui.control.Label
+
         parallel_workers   matlab.ui.control.NumericEditField
         Label_10           matlab.ui.control.Label
         elite_size         matlab.ui.control.NumericEditField
@@ -279,39 +274,6 @@ classdef opt_eeg < matlab.apps.AppBase
             app.parallel_workers.Position = [181 199 30 22];
             app.parallel_workers.Value = 50;
 
-            % Create W1EditFieldLabel
-            app.W1EditFieldLabel = uilabel(app.UIFigure);
-            app.W1EditFieldLabel.HorizontalAlignment = 'right';
-            app.W1EditFieldLabel.Position = [211 199 25 22];
-            app.W1EditFieldLabel.Text = 'W1';
-
-            % Create W1
-            app.W1 = uieditfield(app.UIFigure, 'numeric');
-            app.W1.Position = [241 199 30 22];
-            app.W1.Value = 1;
-
-            % Create W2EditFieldLabel
-            app.W2EditFieldLabel = uilabel(app.UIFigure);
-            app.W2EditFieldLabel.HorizontalAlignment = 'right';
-            app.W2EditFieldLabel.Position = [281 199 25 22];
-            app.W2EditFieldLabel.Text = 'W2';
-
-            % Create W2
-            app.W2 = uieditfield(app.UIFigure, 'numeric');
-            app.W2.Position = [311 199 30 22];
-            app.W2.Value = 100;
-
-            % Create W3EditFieldLabel
-            app.W3EditFieldLabel = uilabel(app.UIFigure);
-            app.W3EditFieldLabel.HorizontalAlignment = 'right';
-            app.W3EditFieldLabel.Position = [351 199 25 22];
-            app.W3EditFieldLabel.Text = 'W3';
-
-            % Create W3
-            app.W3 = uieditfield(app.UIFigure, 'numeric');
-            app.W3.Position = [381 199 30 22];
-            app.W3.Value = 0.5;
-
             % Create VmEditFieldLabel
             app.VmEditFieldLabel = uilabel(app.UIFigure);
             app.VmEditFieldLabel.HorizontalAlignment = 'right';
@@ -321,7 +283,7 @@ classdef opt_eeg < matlab.apps.AppBase
             % Create target_strength
             app.target_strength = uieditfield(app.UIFigure, 'numeric');
             app.target_strength.Position = [101 159 30 22];
-            app.target_strength.Value = 0.7;
+            app.target_strength.Value = 0.2;
 
             % Create Label_11
             app.Label_11 = uilabel(app.UIFigure);
@@ -342,10 +304,10 @@ classdef opt_eeg < matlab.apps.AppBase
 
             % ---- 适应度公式显示（LaTeX 渲染，含分数） ----
             app.formulaLabel = uilabel(app.UIFigure);
-            app.formulaLabel.Position = [11 10 410 100];   
+            app.formulaLabel.Position = [11 70 410 90];   
             app.formulaLabel.Interpreter = 'latex';
             app.formulaLabel.Text = {
-                '$F = W_1\cdot\frac{\mathrm{ROI}_{\mathrm{avg}}}{\mathrm{Whole}_{\mathrm{avg}}} + W_2\cdot\frac{\mathrm{FocusRatio}}{100} - W_3\cdot\frac{\mathrm{FocusVol}}{\mathrm{Whole}_{\mathrm{vol}}}$',
+                '$F = \frac{\mathrm{ROI}_{\mathrm{avg}}}{\mathrm{Rest}_{\mathrm{avg}}}$',
                 '$\mathrm{Penalty} = \lambda\cdot\max(0,\;\mathrm{Target}-\mathrm{ROI}_{\mathrm{avg}})^2$',
                 '$\mathrm{Fitness} = F - \mathrm{Penalty}$'
             };
@@ -463,9 +425,6 @@ classdef opt_eeg < matlab.apps.AppBase
             mutation_rate = app.mutation_rate.Value;
             elite_size = app.elite_size.Value;
             parallel_workers = app.parallel_workers.Value;
-            w1 = app.W1.Value;
-            w2 = app.W2.Value;
-            w3 = app.W3.Value;
             target_strength = app.target_strength.Value;
             penalty_lambda = app.penalty_lambda.Value;
 
@@ -475,7 +434,7 @@ classdef opt_eeg < matlab.apps.AppBase
                     roi_radius, currents, shape, dimensions, thickness, ...
                     electrode_pool, population_size, max_generations, ...
                     crossover_rate, mutation_rate, elite_size, ...
-                    parallel_workers, w1, w2, w3, target_strength, penalty_lambda);
+                    parallel_workers, target_strength, penalty_lambda);
                 uialert(app.UIFigure, '优化完成，请查看输出文件夹。', '完成');
             catch ME
                 uialert(app.UIFigure, ['优化出错: ' ME.message], '错误');
