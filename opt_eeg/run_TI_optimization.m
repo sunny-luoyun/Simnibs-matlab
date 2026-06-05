@@ -26,10 +26,10 @@ function run_TI_optimization(m2m_folder, output_root, mni_target, ...
     end
 
     % ========== 确保 Worker 能访问依赖文件 ==========
-    required_files = {'TIS.m', 'look_efield.m', 'eval_individual.m'};
+    required_files = {'TIS.m', 'look_efield.m', 'eval_individual.m', 'setup_path.m'};
     addAttachedFiles(pool, required_files);
     spmd
-        addpath(pwd);
+        setup_path();
     end
 
     % ========== 定义适应度函数句柄 ==========

@@ -536,6 +536,9 @@ classdef TI < matlab.apps.AppBase
         % Construct app
         function app = TI
 
+            % Setup paths
+            setup_path();
+
             % Create UIFigure and components
             createComponents(app)
 

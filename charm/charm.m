@@ -136,6 +136,7 @@ classdef charm < matlab.apps.AppBase
 
         % Construct app
         function app = charm
+            setup_path();
             createComponents(app)
             registerApp(app, app.UIFigure)
             if nargout == 0

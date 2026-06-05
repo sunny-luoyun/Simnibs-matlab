@@ -202,6 +202,9 @@ classdef simnibs < matlab.apps.AppBase
         % Construct app
         function app = simnibs
 
+            % Setup paths
+            setup_path();
+
             % Create UIFigure and components
             createComponents(app)
 

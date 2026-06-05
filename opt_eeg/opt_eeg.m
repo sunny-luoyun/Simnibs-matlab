@@ -325,6 +325,9 @@ classdef opt_eeg < matlab.apps.AppBase
         % Construct app
         function app = opt_eeg
 
+            % Setup paths
+            setup_path();
+
             % Create UIFigure and components
             createComponents(app)
 
