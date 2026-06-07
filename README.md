@@ -1,6 +1,6 @@
 # SimNIBS MATLAB工具集
 
-基于SimNIBS的脑磁刺激分析工具集，提供TMS/DBS刺激模拟、结构分割和电极位置优化功能。
+基于SimNIBS的脑磁刺激分析工具集
 
 ## 功能模块
 
