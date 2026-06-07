@@ -126,7 +126,8 @@ classdef simnibs < matlab.apps.AppBase
                 tempDir = tempname;
                 mkdir(tempDir);
                 fprintf('正在下载更新包...\n');
-                websave(fullfile(tempDir, 'update.zip'), zipUrl);
+                dlOpts = weboptions('Progress', 'on');
+                websave(fullfile(tempDir, 'update.zip'), zipUrl, dlOpts);
                 fprintf('下载完成，正在解压...\n');
                 unzip(fullfile(tempDir, 'update.zip'), tempDir);
                 files = dir(tempDir);
