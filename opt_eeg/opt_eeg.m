@@ -8,7 +8,8 @@ classdef opt_eeg < matlab.apps.AppBase
         Label_11           matlab.ui.control.Label
         target_strength    matlab.ui.control.NumericEditField
         VmEditFieldLabel   matlab.ui.control.Label
-
+        patience           matlab.ui.control.NumericEditField
+        Label_12           matlab.ui.control.Label
         parallel_workers   matlab.ui.control.NumericEditField
         Label_10           matlab.ui.control.Label
         elite_size         matlab.ui.control.NumericEditField
@@ -274,6 +275,17 @@ classdef opt_eeg < matlab.apps.AppBase
             app.parallel_workers.Position = [181 199 30 22];
             app.parallel_workers.Value = 50;
 
+            % Create Label_12
+            app.Label_12 = uilabel(app.UIFigure);
+            app.Label_12.HorizontalAlignment = 'right';
+            app.Label_12.Position = [215 199 88 22];
+            app.Label_12.Text = '无改进终止(代)';
+
+            % Create patience
+            app.patience = uieditfield(app.UIFigure, 'numeric');
+            app.patience.Position = [306 199 30 22];
+            app.patience.Value = 40;
+
             % Create VmEditFieldLabel
             app.VmEditFieldLabel = uilabel(app.UIFigure);
             app.VmEditFieldLabel.HorizontalAlignment = 'right';
@@ -430,6 +442,7 @@ classdef opt_eeg < matlab.apps.AppBase
             parallel_workers = app.parallel_workers.Value;
             target_strength = app.target_strength.Value;
             penalty_lambda = app.penalty_lambda.Value;
+            patience = app.patience.Value;
 
             % 启动优化（异步）
             try
@@ -437,7 +450,7 @@ classdef opt_eeg < matlab.apps.AppBase
                     roi_radius, currents, shape, dimensions, thickness, ...
                     electrode_pool, population_size, max_generations, ...
                     crossover_rate, mutation_rate, elite_size, ...
-                    parallel_workers, target_strength, penalty_lambda);
+                    parallel_workers, target_strength, penalty_lambda, patience);
                 uialert(app.UIFigure, '优化完成，请查看输出文件夹。', '完成');
             catch ME
                 uialert(app.UIFigure, ['优化出错: ' ME.message], '错误');

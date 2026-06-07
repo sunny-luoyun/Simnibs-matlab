@@ -1,13 +1,14 @@
 function [best_individual, best_fitness] = genetic_algorithm_core(...
     fitness_func, electrode_pool, population_size, max_generations, ...
     crossover_rate, mutation_rate, elite_size, checkpoint_file, log_file_path, ...
-    eval_log_file) 
+    eval_log_file, patience) 
 % GENETIC_ALGORITHM_CORE  遗传算法框架（电极优化）
 %   fitness_func     : 适应度函数句柄 @(individual) -> scalar fitness
 %   electrode_pool   : 所有可用电极名称的 cell array
 %   其余参数同原版含义
 %   checkpoint_file  : 检查点 .mat 路径
 %   log_file_path    : 日志文件路径
+%   patience         : 连续多少代无改进则提前停止（默认 max_generations，即不提前停止）
 
     num_electrodes = 4;  % 固定为4电极
 
@@ -28,6 +29,12 @@ function [best_individual, best_fitness] = genetic_algorithm_core(...
         global_best_individual = [];
         global_best_fitness = -inf;
     end
+
+    % 默认 patience = max_generations（即不提前停止）
+    if nargin < 11 || isempty(patience)
+        patience = max_generations;
+    end
+    no_improve_count = 0;
 
     % ---- 主循环 ----
     for gen = start_generation : (max_generations - 1)
@@ -64,9 +71,20 @@ function [best_individual, best_fitness] = genetic_algorithm_core(...
         if max_fit > global_best_fitness
             global_best_fitness = max_fit;
             global_best_individual = population{idx};
+            no_improve_count = 0;
             fprintf(log_fid, 'New global best found: %s -> Fitness: %.4f, roi_avg: %.4f, focus_ratio: %.2f%%, mod_depth: %.3f\n', ...
             cell2str(global_best_individual), global_best_fitness, ...
             this_best_info.roi_avg, this_best_info.focus_ratio, this_best_info.mod_depth);
+        else
+            no_improve_count = no_improve_count + 1;
+            fprintf(log_fid, 'No improvement (%d/%d generations without progress).\n', no_improve_count, patience);
+        end
+
+        % 早期停止：连续 patience 代无改进则跳出
+        if no_improve_count >= patience
+            fprintf(log_fid, '\nEarly stopping at generation %d: no improvement for %d consecutive generations.\n', gen+1, patience);
+            fprintf('Early stopping at generation %d: no improvement for %d consecutive generations.\n', gen+1, patience);
+            break;
         end
 
         % ---- 精英保留 + 生成下一代 ----
