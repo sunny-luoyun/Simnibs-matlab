@@ -38,17 +38,23 @@ classdef simnibs < matlab.apps.AppBase
     methods (Access = private)
 
         function checkForUpdate(app)
+            fprintf('检查更新中...\n');
             appDir = fileparts(mfilename('fullpath'));
             localSHA = getLocalVersion(app, appDir);
             if isempty(localSHA)
+                fprintf('检查更新失败：无法获取本地版本\n');
                 return;
             end
             remoteSHA = getRemoteVersion(app);
             if isempty(remoteSHA)
+                fprintf('检查更新失败（网络不可用）\n');
                 return;
             end
             if ~strcmp(localSHA, remoteSHA)
+                fprintf('发现新版本！本地: %s, 远程: %s\n', localSHA(1:7), remoteSHA(1:7));
                 showUpdateDialog(app, localSHA(1:7), remoteSHA(1:7), appDir);
+            else
+                fprintf('当前已是最新版本 (%s)\n', localSHA(1:7));
             end
         end
 
@@ -97,14 +103,19 @@ classdef simnibs < matlab.apps.AppBase
         end
 
         function doUpdate(app, dlg, appDir)
+            fprintf('开始更新...\n');
             [status, ~] = system(['git -C "', appDir, '" pull 2>&1']);
             if status == 0
+                fprintf('更新成功(git pull)，重启中...\n');
                 restartApp(app, dlg);
                 return;
             end
+            fprintf('git pull 失败，尝试 ZIP 下载更新...\n');
             if zipUpdate(app, appDir)
+                fprintf('更新成功(ZIP)，重启中...\n');
                 restartApp(app, dlg);
             else
+                fprintf('更新失败，请检查网络连接\n');
                 uialert(dlg, '更新失败，请检查网络连接后重试。', '错误', 'Icon', 'error');
             end
         end
@@ -114,7 +125,9 @@ classdef simnibs < matlab.apps.AppBase
                 zipUrl = 'https://gitee.com/luoyun-weixi/simnibs-matlab/repository/archive/main.zip';
                 tempDir = tempname;
                 mkdir(tempDir);
+                fprintf('正在下载更新包...\n');
                 websave(fullfile(tempDir, 'update.zip'), zipUrl);
+                fprintf('下载完成，正在解压...\n');
                 unzip(fullfile(tempDir, 'update.zip'), tempDir);
                 files = dir(tempDir);
                 subdirIdx = find([files.isdir] & ~ismember({files.name}, {'.', '..'}), 1);
