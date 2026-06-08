@@ -25,7 +25,7 @@ function [f, info] = eval_individual(individual, m2m_folder, output_root, mni_ta
 
         if isnan(roi_avg) || isnan(rest_avg)
             f = -1e6;
-            info = struct('roi_avg', NaN, 'focus_ratio', NaN, 'mod_depth', NaN, ...
+        info = struct('roi_avg', NaN, 'rest_avg', NaN, 'focus_ratio', NaN, 'mod_depth', NaN, ...
               'focus_vol_total', NaN, 'peak_mni', NaN(1,3));
         else
             % [1] Lee et al. 2020: Peak Ratio + intensity constraint

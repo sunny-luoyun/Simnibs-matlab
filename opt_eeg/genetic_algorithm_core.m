@@ -319,7 +319,7 @@ function write_eval_log(filepath, pop, fitness, info)
 
     % 如果文件刚被创建或不存在，先写表头
     if ~file_exists || ftell(fid) == 0
-        fprintf(fid, 'C1E1,C1E2,C2E1,C2E2,Fitness,roi_avg,focus_ratio,mod_depth,focus_vol_total,peak_mni_x,peak_mni_y,peak_mni_z\n');
+        fprintf(fid, 'C1E1,C1E2,C2E1,C2E2,Fitness,roi_avg,rest_avg,focus_ratio,mod_depth,focus_vol_total,peak_mni_x,peak_mni_y,peak_mni_z\n');
     end
 
     for i = 1:length(pop)
@@ -328,12 +328,13 @@ function write_eval_log(filepath, pop, fitness, info)
         inf = info{i};
         % 安全获取各字段，若缺失则填 NaN
         roi = getfield_safe(inf, 'roi_avg', NaN);
+        rest = getfield_safe(inf, 'rest_avg', NaN);
         foc = getfield_safe(inf, 'focus_ratio', NaN);
         dep = getfield_safe(inf, 'mod_depth', NaN);
         vol = getfield_safe(inf, 'focus_vol_total', NaN);
         peak = getfield_safe(inf, 'peak_mni', [NaN NaN NaN]);
-        fprintf(fid, '%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n', ...
-            comb, fit, roi, foc, dep, vol, peak(1), peak(2), peak(3));
+        fprintf(fid, '%s,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n', ...
+            comb, fit, roi, rest, foc, dep, vol, peak(1), peak(2), peak(3));
     end
     fclose(fid);
 end
