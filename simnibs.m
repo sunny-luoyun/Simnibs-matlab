@@ -3,7 +3,6 @@ classdef simnibs < matlab.apps.AppBase
     % Properties that correspond to app components
     properties (Access = public)
         UIFigure      matlab.ui.Figure
-        TIopt_pos     matlab.ui.control.Button
         TIopt_eeg     matlab.ui.control.Button
         TIstimulate   matlab.ui.control.Button
         charmButton   matlab.ui.control.Button
@@ -28,10 +27,6 @@ classdef simnibs < matlab.apps.AppBase
             run("opt_eeg.m")
         end
 
-        % Button pushed function: TIopt_pos
-        function TIopt_posPushed(app, event)
-            
-        end
     end
 
     % Update check
@@ -160,7 +155,7 @@ classdef simnibs < matlab.apps.AppBase
             % 获取屏幕尺寸（单位为像素）
             screenSize = get(groot, 'ScreenSize');
             figWidth = 230;   % 窗口宽度
-            figHeight = 350;  % 窗口高度
+            figHeight = 280;  % 窗口高度
             % 计算左上角坐标使窗口居中
             xPos = (screenSize(3) - figWidth) / 2;
             yPos = (screenSize(4) - figHeight) / 2;
@@ -174,36 +169,29 @@ classdef simnibs < matlab.apps.AppBase
             app.SimNIBSLabel.FontName = 'PingFang SC';
             app.SimNIBSLabel.FontSize = 24;
             app.SimNIBSLabel.FontWeight = 'bold';
-            app.SimNIBSLabel.Position = [2 291 229 60];
+            app.SimNIBSLabel.Position = [2 220 229 60];
             app.SimNIBSLabel.Text = 'SimNIBS';
 
             % Create charmButton
             app.charmButton = uibutton(app.UIFigure, 'push');
             app.charmButton.ButtonPushedFcn = createCallbackFcn(app, @charmButtonPushed, true);
             app.charmButton.FontSize = 14;
-            app.charmButton.Position = [32 229 170 52];
+            app.charmButton.Position = [30 158 170 52];
             app.charmButton.Text = '结构像分割';
 
             % Create TIstimulate
             app.TIstimulate = uibutton(app.UIFigure, 'push');
             app.TIstimulate.ButtonPushedFcn = createCallbackFcn(app, @TIstimulatePushed, true);
             app.TIstimulate.FontSize = 14;
-            app.TIstimulate.Position = [31 159 170 52];
+            app.TIstimulate.Position = [30 86 170 52];
             app.TIstimulate.Text = 'TI模拟';
 
             % Create TIopt_eeg
             app.TIopt_eeg = uibutton(app.UIFigure, 'push');
             app.TIopt_eeg.ButtonPushedFcn = createCallbackFcn(app, @TIopt_eegPushed, true);
             app.TIopt_eeg.FontSize = 14;
-            app.TIopt_eeg.Position = [31 89 170 52];
+            app.TIopt_eeg.Position = [30 14 170 52];
             app.TIopt_eeg.Text = 'TI优化(电极点位)';
-
-            % Create TIopt_pos
-            app.TIopt_pos = uibutton(app.UIFigure, 'push');
-            app.TIopt_pos.ButtonPushedFcn = createCallbackFcn(app, @TIopt_posPushed, true);
-            app.TIopt_pos.FontSize = 14;
-            app.TIopt_pos.Position = [31 19 170 52];
-            app.TIopt_pos.Text = 'TI优化(坐标点位)';
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';
