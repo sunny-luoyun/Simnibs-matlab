@@ -9,7 +9,7 @@
   - Statistics and Machine Learning Toolbox
   - Parallel Computing Toolbox (推荐)
 - **外部依赖**:
-  - SimNIBS
+  - SimNIBS(安装好SimNIBS后需将文件夹的路径SimNIBS/matlab_tools加入matlab路径中)
 
 ## 安装与运行
 
