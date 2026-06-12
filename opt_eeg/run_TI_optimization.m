@@ -16,6 +16,33 @@ function run_TI_optimization(m2m_folder, output_root, mni_target, ...
         mkdir(output_root);
     end
 
+    % 写入 CSV 参数注释（文件开头）
+    fid_csv = fopen(eval_log_file, 'w');
+    if fid_csv ~= -1
+        fprintf(fid_csv, '# Simulation Parameters:\n');
+        fprintf(fid_csv, '# m2m_folder: %s\n', m2m_folder);
+        fprintf(fid_csv, '# MNI Target: [%.1f, %.1f, %.1f]\n', mni_target(1), mni_target(2), mni_target(3));
+        fprintf(fid_csv, '# ROI Radius: %.1f mm\n', roi_radius);
+        fprintf(fid_csv, '# Currents: %+.4f A\n', currents(1));
+        fprintf(fid_csv, '# Electrode Shape: %s\n', shape);
+        fprintf(fid_csv, '# Electrode Dimensions: %.1f x %.1f mm\n', dimensions(1), dimensions(2));
+        fprintf(fid_csv, '# Electrode Thickness: %.1f mm\n', thickness);
+        fprintf(fid_csv, '# Electrode Pool: %s\n', strjoin(electrode_pool, ', '));
+        fprintf(fid_csv, '# Population Size: %d\n', population_size);
+        fprintf(fid_csv, '# Max Generations: %d\n', max_generations);
+        fprintf(fid_csv, '# Crossover Rate: %.2f\n', crossover_rate);
+        fprintf(fid_csv, '# Mutation Rate: %.2f\n', mutation_rate);
+        fprintf(fid_csv, '# Elite Size: %d\n', elite_size);
+        fprintf(fid_csv, '# Parallel Workers: %d\n', parallel_workers);
+        fprintf(fid_csv, '# Target Strength: %.2f V/m\n', target_strength);
+        fprintf(fid_csv, '# Penalty Lambda: %.1f\n', penalty_lambda);
+        fprintf(fid_csv, '# Patience: %d\n', patience);
+        fprintf(fid_csv, 'C1E1,C1E2,C2E1,C2E2,Fitness,roi_avg,rest_avg,focus_ratio,mod_depth,focus_vol_total,peak_mni_x,peak_mni_y,peak_mni_z\n');
+        fclose(fid_csv);
+    else
+        warning('无法创建 CSV 文件: %s', eval_log_file);
+    end
+
     % 启动并行池
     pool = gcp('nocreate');
     if isempty(pool)
