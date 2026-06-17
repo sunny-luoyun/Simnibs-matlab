@@ -115,24 +115,52 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
         elec_to_idx(electrode_names{i}) = i;
     end
 
-    % 用 parallel.pool.Constant 广播大数组，避免 parfor 重复序列化
-    fields_constant = parallel.pool.Constant(fields);
-
-    % 适应度函数句柄（GA 和穷举共用）
-    eval_func = @(ind) eval_individual_lf(ind, fields_constant, elec_to_idx, ...
-        geo_cache, currents, target_strength, penalty_lambda);
-
     % 按搜索模式分流
     switch search_mode
         case 'exhaustive'
             fprintf('  搜索方式: 穷举搜索\n\n');
+
+            % ── 将电场写入二进制共享文件，避免每个 worker 持完整副本 ──
+            N_elec = size(fields, 1);
+            N_gm = size(fields, 2);
+            fields_file = fullfile(output_root, 'fields.bin');
+            file_gb = N_elec * N_gm * 3 * 8 / 1e9;
+            fprintf('  写入电场共享文件 (%d 电极 × %d 灰质单元, %.1f GB)...\n', ...
+                N_elec, N_gm, file_gb);
+
+            fid = fopen(fields_file, 'wb');
+            assert(fid ~= -1, '无法创建电场共享文件: %s', fields_file);
+            data = permute(fields, [2, 3, 1]);  % [N_gm, 3, N_elec] 连续布局
+            fwrite(fid, data, 'double');
+            fclose(fid);
+            clear data;
+
+            % memmapfile 零拷贝共享（OS 页缓存跨进程共享物理页面）
+            mmf = memmapfile(fields_file, 'Format', ...
+                {'double', [N_gm, 3, N_elec], 'f'});
+            mmf_constant = parallel.pool.Constant(mmf);
+            clear fields mmf;  % 释放客户端内存
+
+            % geo_cache 也封为 Constant，避免 parfor 反复序列化
+            geo_cache_constant = parallel.pool.Constant(geo_cache);
+
             [best_ind, best_fit, best_info] = exhaustive_TI_search(...
-                fields_constant, electrode_names, geo_cache, currents, ...
-                target_strength, penalty_lambda, output_root);
+                mmf_constant, electrode_names, geo_cache_constant, currents, ...
+                target_strength, penalty_lambda, output_root, N_gm);
+
+            % 清理共享文件
+            try delete(fields_file); end
 
         otherwise
             fprintf('  GA 初始化完成，开始优化...\n');
             fprintf('  如果卡住，请确认 workers 内存足够 (>4GB/worker)\n\n');
+
+            % 用 parallel.pool.Constant 广播大数组
+            fields_constant = parallel.pool.Constant(fields);
+
+            % 适应度函数句柄
+            eval_func = @(ind) eval_individual_lf(ind, fields_constant, ...
+                elec_to_idx, geo_cache, currents, target_strength, penalty_lambda);
 
             [best_ind, best_fit] = genetic_algorithm_core(...
                 eval_func, electrode_names, ...

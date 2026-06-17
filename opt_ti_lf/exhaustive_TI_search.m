@@ -1,16 +1,17 @@
 function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
-    fields_constant, electrode_names, geo_cache, currents, ...
-    target_strength, penalty_lambda, output_root)
+    mmf_constant, electrode_names, geo_cache_constant, currents, ...
+    target_strength, penalty_lambda, output_root, N_gm)
 % 穷举所有电极组合，找全局最优 TI 电极配置
 %
 % 输入:
-%   fields_constant : parallel.pool.Constant 封装的预计算电场
+%   mmf_constant    : parallel.pool.Constant(memmapfile([N_gm,3,N_elec]))
 %   electrode_names : {N_elec} 电极名称
-%   geo_cache       : ROI 几何缓存
+%   geo_cache_constant: parallel.pool.Constant(geo_cache)
 %   currents        : [I, -I] 电流值
 %   target_strength : 靶区目标场强 (V/m)
 %   penalty_lambda  : 惩罚系数
 %   output_root     : 输出文件夹（保存全部结果的 CSV）
+%   N_gm            : 灰质单元数
 %
 % 输出:
 %   best_ind  : 最优 4 电极 cell array
@@ -24,7 +25,7 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     M = size(all_combos, 1);
     fprintf('  电极池: %d 个, 组合数: %d\n', N, M);
 
-    batch_size = 20000;
+    batch_size = 5000;
     num_batches = ceil(M / batch_size);
     fprintf('  分 %d 批 (每批 %d), 开始穷举搜索...\n\n', num_batches, batch_size);
 
@@ -46,8 +47,8 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     overall_best_fit = -inf;
     overall_best_idx = 0;
 
-    data_mb = N * size(geo_cache.gm_volumes, 1) * 3 * 8 / 1e6;
-    fprintf('  → 正在向 worker 广播数据 (%.0f MB)...\n', data_mb);
+    data_mb = N * N_gm * 3 * 8 / 1e6;
+    fprintf('  → 电场已通过 memmapfile 零拷贝共享 (%.0f MB, 无 per-worker 副本)\n', data_mb);
 
     for b = 1:num_batches
         start_idx = (b-1) * batch_size + 1;
@@ -65,17 +66,19 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
             i1 = combo_idx(1); i2 = combo_idx(2);
             i3 = combo_idx(3); i4 = combo_idx(4);
 
-            fields = fields_constant.Value;
+            % memmapfile 零拷贝读取：仅缺页时加载，物理页跨 worker 共享
+            f = mmf_constant.Value.Data.f;
+            E1 = f(:, :, i1) - f(:, :, i2);
+            E2 = f(:, :, i3) - f(:, :, i4);
+            clear f;
 
-            E1 = squeeze(fields(i1, :, :)) - squeeze(fields(i2, :, :));
-            E2 = squeeze(fields(i3, :, :)) - squeeze(fields(i4, :, :));
             TI = get_maxTI(E1, E2);
+            clear E1 E2;
 
-            gm_vols = geo_cache.gm_volumes;
-            roi_mask = geo_cache.roi_mask;
-
-            roi_avg = sum(TI(roi_mask) .* gm_vols(roi_mask)) / geo_cache.roi_volume;
-            rest_avg = sum(TI(geo_cache.non_roi_mask) .* gm_vols(geo_cache.non_roi_mask)) / geo_cache.non_roi_volume;
+            g = geo_cache_constant.Value;
+            roi_avg = sum(TI(g.roi_mask) .* g.gm_volumes(g.roi_mask)) / g.roi_volume;
+            rest_avg = sum(TI(g.non_roi_mask) .* g.gm_volumes(g.non_roi_mask)) / g.non_roi_volume;
+            clear TI g;
 
             if ~isnan(roi_avg) && ~isnan(rest_avg) && rest_avg > 1e-12
                 F = roi_avg / rest_avg;
@@ -136,22 +139,27 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         best_fit = overall_best_fit;
 
         % 最终详细评估
-        fields = fields_constant.Value;
-        E1 = squeeze(fields(best_idx(1), :, :)) - squeeze(fields(best_idx(2), :, :));
-        E2 = squeeze(fields(best_idx(3), :, :)) - squeeze(fields(best_idx(4), :, :));
+        f = mmf_constant.Value.Data.f;
+        E1 = f(:, :, best_idx(1)) - f(:, :, best_idx(2));
+        E2 = f(:, :, best_idx(3)) - f(:, :, best_idx(4));
+        clear f;
         TI = get_maxTI(E1, E2);
+        clear E1 E2;
+
+        g = geo_cache_constant.Value;
         [peak_val, peak_idx] = max(TI);
-        gm_vols = geo_cache.gm_volumes;
-        roi_avg = sum(TI(geo_cache.roi_mask) .* gm_vols(geo_cache.roi_mask)) / geo_cache.roi_volume;
-        rest_avg = sum(TI(geo_cache.non_roi_mask) .* gm_vols(geo_cache.non_roi_mask)) / geo_cache.non_roi_volume;
+        roi_avg = sum(TI(g.roi_mask) .* g.gm_volumes(g.roi_mask)) / g.roi_volume;
+        rest_avg = sum(TI(g.non_roi_mask) .* g.gm_volumes(g.non_roi_mask)) / g.non_roi_volume;
         fwhm = peak_val / 2;
         above_fwhm = TI >= fwhm;
-        focus_vol_total = sum(gm_vols(above_fwhm));
-        roi_above = above_fwhm & geo_cache.roi_mask;
-        focus_vol_roi = sum(gm_vols(roi_above));
+        focus_vol_total = sum(g.gm_volumes(above_fwhm));
+        roi_above = above_fwhm & g.roi_mask;
+        focus_vol_roi = sum(g.gm_volumes(roi_above));
         focus_ratio = focus_vol_roi / focus_vol_total;
-        roi_TI = TI(geo_cache.roi_mask);
+        roi_TI = TI(g.roi_mask);
         mod_depth = (max(roi_TI) - min(roi_TI)) / roi_avg;
+        peak_center = g.gm_centers(peak_idx, :);
+        clear TI g;
 
         best_info = struct();
         best_info.roi_avg = roi_avg;
@@ -159,7 +167,7 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         best_info.focus_ratio = focus_ratio * 100;
         best_info.mod_depth = mod_depth;
         best_info.focus_vol_total = focus_vol_total;
-        best_info.peak_mni = geo_cache.gm_centers(peak_idx, :);
+        best_info.peak_mni = peak_center;
     else
         best_ind = {};
         best_fit = -inf;
