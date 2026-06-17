@@ -70,12 +70,10 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
             % memmapfile 零拷贝读取（子函数 persistent 各 worker 仅映射一次）
             [E1, E2] = get_field_slices(fields_file, i1, i2, i3, i4, N_gm, N);
             TI = get_maxTI(E1, E2);
-            clear E1 E2;
 
             g = geo_cache_constant.Value;
             roi_avg = sum(TI(g.roi_mask) .* g.gm_volumes(g.roi_mask)) / g.roi_volume;
             rest_avg = sum(TI(g.non_roi_mask) .* g.gm_volumes(g.non_roi_mask)) / g.non_roi_volume;
-            clear TI g;
 
             if ~isnan(roi_avg) && ~isnan(rest_avg) && rest_avg > 1e-12
                 F = roi_avg / rest_avg;
