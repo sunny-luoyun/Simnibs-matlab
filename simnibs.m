@@ -15,21 +15,29 @@ classdef simnibs < matlab.apps.AppBase
 
         % Button pushed function: charmButton
         function charmButtonPushed(app, event)
+            addpath(fullfile(fileparts(mfilename('fullpath')), 'charm'));
+            rehash;
             charm();
         end
 
         % Button pushed function: TIstimulate
         function TIstimulatePushed(app, event)
+            addpath(fullfile(fileparts(mfilename('fullpath')), 'TI'));
+            rehash;
             TI();
         end
 
         % Button pushed function: TIopt_eeg
         function TIopt_eegPushed(app, event)
+            addpath(fullfile(fileparts(mfilename('fullpath')), 'opt_eeg'));
+            rehash;
             opt_eeg();
         end
 
         % Button pushed function: TIopt_lf
         function TIopt_lfPushed(app, event)
+            addpath(fullfile(fileparts(mfilename('fullpath')), 'opt_ti_lf'));
+            rehash;
             opt_ti_lf();
         end
 
