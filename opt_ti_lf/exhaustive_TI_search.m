@@ -1,10 +1,10 @@
 function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
-    mmf_constant, electrode_names, geo_cache_constant, currents, ...
-    target_strength, penalty_lambda, output_root, N_gm)
+    fields_file, electrode_names, geo_cache_constant, currents, ...
+    target_strength, penalty_lambda, output_root, N_gm, N_elec)
 % 穷举所有电极组合，找全局最优 TI 电极配置
 %
 % 输入:
-%   mmf_constant    : parallel.pool.Constant(memmapfile([N_gm,3,N_elec]))
+%   fields_file     : 电场二进制文件路径 ([N_gm, 3, N_elec] double)
 %   electrode_names : {N_elec} 电极名称
 %   geo_cache_constant: parallel.pool.Constant(geo_cache)
 %   currents        : [I, -I] 电流值
@@ -12,13 +12,14 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
 %   penalty_lambda  : 惩罚系数
 %   output_root     : 输出文件夹（保存全部结果的 CSV）
 %   N_gm            : 灰质单元数
+%   N_elec          : 电极数
 %
 % 输出:
 %   best_ind  : 最优 4 电极 cell array
 %   best_fit  : 最优适应度
 %   best_info : 详细信息
 
-    N = length(electrode_names);
+    N = N_elec;
     I = currents(1);
 
     all_combos = nchoosek(1:N, 4);
@@ -66,12 +67,8 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
             i1 = combo_idx(1); i2 = combo_idx(2);
             i3 = combo_idx(3); i4 = combo_idx(4);
 
-            % memmapfile 零拷贝读取：仅缺页时加载，物理页跨 worker 共享
-            f = mmf_constant.Value.Data.f;
-            E1 = f(:, :, i1) - f(:, :, i2);
-            E2 = f(:, :, i3) - f(:, :, i4);
-            clear f;
-
+            % memmapfile 零拷贝读取（子函数 persistent 各 worker 仅映射一次）
+            [E1, E2] = get_field_slices(fields_file, i1, i2, i3, i4, N_gm, N);
             TI = get_maxTI(E1, E2);
             clear E1 E2;
 
@@ -139,10 +136,8 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         best_fit = overall_best_fit;
 
         % 最终详细评估
-        f = mmf_constant.Value.Data.f;
-        E1 = f(:, :, best_idx(1)) - f(:, :, best_idx(2));
-        E2 = f(:, :, best_idx(3)) - f(:, :, best_idx(4));
-        clear f;
+        [E1, E2] = get_field_slices(fields_file, ...
+            best_idx(1), best_idx(2), best_idx(3), best_idx(4), N_gm, N);
         TI = get_maxTI(E1, E2);
         clear E1 E2;
 
@@ -175,4 +170,17 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     end
 
     fprintf('  ✅ 穷举完成! 总耗时: %.1f 秒\n', toc(t_start));
+end
+
+
+function [E1, E2] = get_field_slices(fields_file, i1, i2, i3, i4, N_gm, N_elec)
+% 子函数：各 worker persistent 缓存 memmapfile，零拷贝读取 4 电极切片
+    persistent mmf
+    if isempty(mmf)
+        mmf = memmapfile(fields_file, 'Format', ...
+            {'double', [N_gm, 3, N_elec], 'f'});
+    end
+    f = mmf.Data.f;
+    E1 = f(:, :, i1) - f(:, :, i2);
+    E2 = f(:, :, i3) - f(:, :, i4);
 end

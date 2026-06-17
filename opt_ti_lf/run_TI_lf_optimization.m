@@ -66,6 +66,7 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
     addAttachedFiles(pool, {
         'run_single_electrode_simulation.m', ...
         'eval_individual_lf.m', ...
+        'exhaustive_TI_search.m', ...
         'setup_path.m'
         });
     simnibs_path = fileparts(which('run_simnibs'));
@@ -133,20 +134,14 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
             data = permute(fields, [2, 3, 1]);  % [N_gm, 3, N_elec] 连续布局
             fwrite(fid, data, 'double');
             fclose(fid);
-            clear data;
+            clear data fields;  % 释放客户端内存
 
-            % memmapfile 零拷贝共享（OS 页缓存跨进程共享物理页面）
-            mmf = memmapfile(fields_file, 'Format', ...
-                {'double', [N_gm, 3, N_elec], 'f'});
-            mmf_constant = parallel.pool.Constant(mmf);
-            clear fields mmf;  % 释放客户端内存
-
-            % geo_cache 也封为 Constant，避免 parfor 反复序列化
+            % geo_cache 封为 Constant，避免 parfor 反复序列化
             geo_cache_constant = parallel.pool.Constant(geo_cache);
 
             [best_ind, best_fit, best_info] = exhaustive_TI_search(...
-                mmf_constant, electrode_names, geo_cache_constant, currents, ...
-                target_strength, penalty_lambda, output_root, N_gm);
+                fields_file, electrode_names, geo_cache_constant, currents, ...
+                target_strength, penalty_lambda, output_root, N_gm, N_elec);
 
             % 清理共享文件
             try delete(fields_file); end
