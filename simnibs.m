@@ -15,22 +15,22 @@ classdef simnibs < matlab.apps.AppBase
 
         % Button pushed function: charmButton
         function charmButtonPushed(app, event)
-            run("charm.m")
+            charm();
         end
 
         % Button pushed function: TIstimulate
         function TIstimulatePushed(app, event)
-            run("TI.m")
+            TI();
         end
 
         % Button pushed function: TIopt_eeg
         function TIopt_eegPushed(app, event)
-            run("opt_eeg.m")
+            opt_eeg();
         end
 
         % Button pushed function: TIopt_lf
         function TIopt_lfPushed(app, event)
-            run("opt_ti_lf.m")
+            opt_ti_lf();
         end
 
     end
