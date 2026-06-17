@@ -50,14 +50,19 @@ classdef simnibs < matlab.apps.AppBase
             appDir = fileparts(mfilename('fullpath'));
             localSHA = getLocalVersion(app, appDir);
             if isempty(localSHA)
+                fprintf('  ✗ 检查更新失败: 无法获取本地版本 (git 和 version.txt 均不可用)\n');
                 return;
             end
             remoteSHA = getRemoteVersion(app);
             if isempty(remoteSHA)
+                fprintf('  ✗ 检查更新失败: 无法连接 Gitee API (网络不通或超时)\n');
                 return;
             end
             if ~strcmp(localSHA, remoteSHA)
+                fprintf('  ⚠ 发现新版本! 本地: %s, 远程: %s\n', localSHA(1:7), remoteSHA(1:7));
                 showUpdateDialog(app, localSHA(1:7), remoteSHA(1:7), appDir);
+            else
+                fprintf('  ✓ 已是最新: %s\n', localSHA(1:7));
             end
         end
 

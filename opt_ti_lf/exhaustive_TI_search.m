@@ -102,7 +102,7 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
             b, num_batches, round(pct), max(batch_scores), elapsed, eta);
     end
 
-    top_k = min(50000, M);
+    top_k = min(10000, M);
     [~, sort_idx] = sort(all_scores, 'descend');
     top_indices = sort_idx(1:top_k);
     if M > 0
