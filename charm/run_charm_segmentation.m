@@ -19,9 +19,9 @@ function run_charm_segmentation(t1Path, outputPath, subjectID, t2Path)
 
     % 3. 执行 CHARM 命令（使用 system + '-echo' 实现实时输出）
     if isempty(niftiT2Path)
-        cmd = sprintf('charm %s "%s" --forcerun', subjectID, niftiT1Path);
+        cmd = sprintf('charm %s "%s" --forcerun --forceqform', subjectID, niftiT1Path);
     else
-        cmd = sprintf('charm %s "%s" "%s" --forcerun', subjectID, niftiT1Path, niftiT2Path);
+        cmd = sprintf('charm %s "%s" "%s" --forcerun --forceqform', subjectID, niftiT1Path, niftiT2Path);
     end
 
     fprintf('CHARM 正在运行，实时输出如下：\n');
