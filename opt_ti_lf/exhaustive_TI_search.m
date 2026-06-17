@@ -109,10 +109,6 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     num_batches_b = ceil(top_k / batch_size_b);
 
     csv_path = fullfile(output_root, 'exhaustive_results.csv');
-    fid_csv = fopen(csv_path, 'w');
-    fprintf(fid_csv, 'Fitness,roi_avg,rest_avg,C1E1,C1E2,C2E1,C2E2\n');
-    fclose(fid_csv);
-
     data_mb = N * N_gm * 3 * 8 / 1e6;
     fprintf('  → 全脑电场 memmapfile: %.0f MB (仅评估 %d 个候选)\n', data_mb, top_k);
 
@@ -126,6 +122,10 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         batch_fitness = zeros(n_in_batch, 1);
         batch_roi = zeros(n_in_batch, 1);
         batch_rest = zeros(n_in_batch, 1);
+        batch_focus_ratio = zeros(n_in_batch, 1);
+        batch_mod_depth = zeros(n_in_batch, 1);
+        batch_focus_vol = zeros(n_in_batch, 1);
+        batch_peak_mni = zeros(n_in_batch, 3);
         batch_idx = zeros(n_in_batch, 4);
 
         parfor j = 1:n_in_batch
@@ -144,8 +144,27 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
                 F = ra / rast;
                 penalty = penalty_lambda * max(0, target_strength - ra)^2;
                 batch_fitness(j) = F - penalty;
+
+                [peak_val, peak_idx] = max(TI);
+                fwhm = peak_val / 2;
+                above_fwhm = TI >= fwhm;
+                fv = sum(g.gm_volumes(above_fwhm));
+                roi_above = above_fwhm & g.roi_mask;
+                focus_vol_roi = sum(g.gm_volumes(roi_above));
+                fr = focus_vol_roi / fv;
+                roi_TI = TI(g.roi_mask);
+                md = (max(roi_TI) - min(roi_TI)) / ra;
+
+                batch_focus_ratio(j) = fr;
+                batch_mod_depth(j) = md;
+                batch_focus_vol(j) = fv;
+                batch_peak_mni(j, :) = g.gm_centers(peak_idx, :);
             else
                 batch_fitness(j) = -1e6;
+                batch_focus_ratio(j) = 0;
+                batch_mod_depth(j) = 0;
+                batch_focus_vol(j) = 0;
+                batch_peak_mni(j, :) = [0, 0, 0];
             end
             batch_roi(j) = ra;
             batch_rest(j) = rast;
@@ -163,8 +182,10 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         fid_csv = fopen(csv_path, 'a');
         for j = 1:n_in_batch
             c = batch_idx(j, :);
-            fprintf(fid_csv, '%.6f,%.6f,%.6f,%s,%s,%s,%s\n', ...
+            fprintf(fid_csv, '%.6f,%.6f,%.6f,%.4f,%.4f,%.1f,%.4f,%.4f,%.4f,%s,%s,%s,%s\n', ...
                 batch_fitness(j), batch_roi(j), batch_rest(j), ...
+                batch_focus_ratio(j), batch_mod_depth(j), batch_focus_vol(j), ...
+                batch_peak_mni(j,1), batch_peak_mni(j,2), batch_peak_mni(j,3), ...
                 electrode_names{c(1)}, electrode_names{c(2)}, ...
                 electrode_names{c(3)}, electrode_names{c(4)});
         end

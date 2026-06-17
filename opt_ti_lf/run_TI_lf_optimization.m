@@ -145,6 +145,26 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
             % geo_cache 封为 Constant，避免 parfor 反复序列化
             geo_cache_constant = parallel.pool.Constant(geo_cache);
 
+            % 写入 CSV 头部注释（仿真参数）
+            csv_path = fullfile(output_root, 'exhaustive_results.csv');
+            fid_csv = fopen(csv_path, 'w');
+            fprintf(fid_csv, '# Simulation Parameters:\n');
+            fprintf(fid_csv, '# m2m_folder: %s\n', m2m_folder);
+            fprintf(fid_csv, '# MNI Target: [%.1f, %.1f, %.1f] mm\n', mni_target(1), mni_target(2), mni_target(3));
+            fprintf(fid_csv, '# ROI Radius: %.1f mm\n', roi_radius);
+            fprintf(fid_csv, '# Currents: %+.4f A\n', currents(1));
+            fprintf(fid_csv, '# Reference Electrode: %s\n', ref_electrode);
+            fprintf(fid_csv, '# Electrode Shape: %s\n', shape);
+            fprintf(fid_csv, '# Electrode Dimensions: %.1f x %.1f mm\n', dimensions(1), dimensions(2));
+            fprintf(fid_csv, '# Electrode Thickness: %.1f mm\n', thickness);
+            fprintf(fid_csv, '# Electrode Pool (%d): %s\n', length(electrode_names), strjoin(electrode_names, ', '));
+            fprintf(fid_csv, '# Search Mode: %s\n', search_mode);
+            fprintf(fid_csv, '# Target Strength: %.2f V/m\n', target_strength);
+            fprintf(fid_csv, '# Penalty Lambda: %.1f\n', penalty_lambda);
+            fprintf(fid_csv, '# N_gm: %d, N_elec: %d, N_roi: %d\n', N_gm, N_elec, N_roi);
+            fprintf(fid_csv, 'C1E1,C1E2,C2E1,C2E2,Fitness,roi_avg,rest_avg,focus_ratio,mod_depth,focus_vol_total,peak_mni_x,peak_mni_y,peak_mni_z\n');
+            fclose(fid_csv);
+
             [best_ind, best_fit, best_info] = exhaustive_TI_search(...
                 fields_file, fields_roi, electrode_names, geo_cache_constant, ...
                 currents, target_strength, penalty_lambda, output_root, N_gm, N_elec);
