@@ -10,6 +10,7 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
 %   Phase 2 — 预计算 geo_cache（ROI 掩膜等）
 %   Phase 3 — 遗传算法优化（查表叠加，毫秒级）
 
+    setup_path();
     ref_electrode = 'Oz';
     current_amp = currents(1);
     cache_dir = fullfile(output_root, 'electrode_cache');

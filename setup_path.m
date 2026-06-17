@@ -8,6 +8,9 @@ folders = {
     };
 addpath(rootDir);
 for i = 1:numel(folders)
-    addpath(fullfile(rootDir, folders{i}));
+    d = fullfile(rootDir, folders{i});
+    if exist(d, 'dir')
+        addpath(d);
+    end
 end
 end

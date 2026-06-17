@@ -7,6 +7,7 @@ function run_TI_optimization(m2m_folder, output_root, mni_target, ...
 % 输入参数与 UI 界面字段一一对应，由 opt_eeg 回调传入。
 % 所有输入均为必要参数，无默认值（由 UI 提供）。
 
+    setup_path();
     log_file = fullfile(output_root, 'ga_log.txt');
     checkpoint_file = fullfile(output_root, 'ga_checkpoint.mat');
     eval_log_file = fullfile(output_root, 'evaluated_individuals.csv'); 
