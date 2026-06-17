@@ -42,17 +42,57 @@ function [fields, gm_centers, gm_volumes, electrode_names, ref_electrode] = ...
     if exist(cache_file, 'file')
         fprintf('  找到缓存: %s\n', cache_file);
         loaded = load(cache_file);
-        % 验证缓存是否匹配
-        if isequal(loaded.electrode_names, pool) && ...
-           strcmp(loaded.ref_electrode, ref_electrode)
-            fields = loaded.fields;
-            gm_centers = loaded.gm_centers;
-            gm_volumes = loaded.gm_volumes;
-            electrode_names = loaded.electrode_names;
-            fprintf('  缓存有效，跳过预计算\n');
-            return;
+
+        % 向后兼容：检测旧格式缓存（缺少新增字段）
+        new_fields = {'subject_name', 'shape', 'dimensions', 'thickness', 'current_amp'};
+        is_new_format = all(isfield(loaded, new_fields));
+
+        if is_new_format
+            % 逐项对比，收集差异
+            diffs = {};
+            if ~isequal(loaded.electrode_names, pool)
+                diffs{end+1} = '电极池已变化';
+            end
+            if ~strcmp(loaded.ref_electrode, ref_electrode)
+                diffs{end+1} = sprintf('参考电极已变化 (%s → %s)', loaded.ref_electrode, ref_electrode);
+            end
+            if ~strcmp(loaded.subject_name, subject_name)
+                diffs{end+1} = sprintf('被试已变化 (%s → %s)', loaded.subject_name, subject_name);
+            end
+            if ~strcmp(loaded.shape, shape)
+                diffs{end+1} = sprintf('电极形状已变化 (%s → %s)', loaded.shape, shape);
+            end
+            if ~isequal(loaded.dimensions, dimensions)
+                diffs{end+1} = sprintf('电极尺寸已变化 ([%.1f, %.1f] → [%.1f, %.1f])', ...
+                    loaded.dimensions(1), loaded.dimensions(2), dimensions(1), dimensions(2));
+            end
+            if loaded.thickness ~= thickness
+                diffs{end+1} = sprintf('电极厚度已变化 (%.1f → %.1f mm)', loaded.thickness, thickness);
+            end
+
+            if isempty(diffs)
+                % 所有参数匹配，检查电流是否需要缩放
+                if loaded.current_amp ~= current_amp
+                    scale = current_amp / loaded.current_amp;
+                    fields = loaded.fields * scale;
+                    fprintf('  电流从 %.4fA → %.4fA，自动线性缩放 (×%.4f)\n', ...
+                        loaded.current_amp, current_amp, scale);
+                else
+                    fields = loaded.fields;
+                end
+                gm_centers = loaded.gm_centers;
+                gm_volumes = loaded.gm_volumes;
+                electrode_names = loaded.electrode_names;
+                fprintf('  缓存有效，跳过预计算\n');
+                return;
+            else
+                fprintf('  缓存不匹配，重新预计算:\n');
+                for i = 1:length(diffs)
+                    fprintf('    - %s\n', diffs{i});
+                end
+            end
         else
-            fprintf('  缓存不匹配（电极池或参考已变化），重新预计算\n');
+            fprintf('  旧格式缓存，重新预计算\n');
         end
     end
 
@@ -150,7 +190,8 @@ function [fields, gm_centers, gm_volumes, electrode_names, ref_electrode] = ...
     % ── 保存缓存 ──
     fprintf('  保存缓存: %s\n', cache_file);
     save(cache_file, 'fields', 'gm_centers', 'gm_volumes', ...
-        'electrode_names', 'ref_electrode', '-v7.3');
+        'electrode_names', 'ref_electrode', ...
+        'subject_name', 'shape', 'dimensions', 'thickness', 'current_amp', '-v7.3');
 
     % ── 清理临时目录 ──
     try rmdir(temp_root, 's'); end
