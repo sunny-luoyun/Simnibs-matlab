@@ -1,23 +1,26 @@
 function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
-    fields_file, electrode_names, geo_cache_constant, currents, ...
-    target_strength, penalty_lambda, output_root, N_gm, N_elec)
-% 穷举所有电极组合，找全局最优 TI 电极配置
+    fields_file, fields_roi, electrode_names, geo_cache_constant, ...
+    currents, target_strength, penalty_lambda, output_root, N_gm, N_elec)
+% 两阶段穷举 TI 搜索：
+%   Stage A — ROI-only 快速筛查（1609 节点），选出 Top 候选
+%   Stage B — 全脑精确评估 Top 候选，保证精度不损失
 %
 % 输入:
-%   fields_file     : 电场二进制文件路径 ([N_gm, 3, N_elec] double)
+%   fields_file     : 全脑电场二进制 memmapfile ([N_gm, 3, N_elec])
+%   fields_roi      : ROI-only 电场 [N_elec, N_roi, 3]（内存常驻，极小）
 %   electrode_names : {N_elec} 电极名称
 %   geo_cache_constant: parallel.pool.Constant(geo_cache)
 %   currents        : [I, -I] 电流值
 %   target_strength : 靶区目标场强 (V/m)
 %   penalty_lambda  : 惩罚系数
-%   output_root     : 输出文件夹（保存全部结果的 CSV）
-%   N_gm            : 灰质单元数
+%   output_root     : 输出文件夹
+%   N_gm            : 灰质单元总数
 %   N_elec          : 电极数
 %
 % 输出:
 %   best_ind  : 最优 4 电极 cell array
 %   best_fit  : 最优适应度
-%   best_info : 详细信息
+%   best_info : 详细信息结构体
 
     N = N_elec;
     I = currents(1);
@@ -26,114 +29,169 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     M = size(all_combos, 1);
     fprintf('  电极池: %d 个, 组合数: %d\n', N, M);
 
-    batch_size = 5000;
-    num_batches = ceil(M / batch_size);
-    fprintf('  分 %d 批 (每批 %d), 开始穷举搜索...\n\n', num_batches, batch_size);
+    % ── 预取 ROI 几何（避免 parfor 反复切片 geo_cache） ──
+    g0 = geo_cache_constant.Value;
+    N_roi = sum(g0.roi_mask);
+    gm_vols_roi = g0.gm_volumes(g0.roi_mask);
+    roi_volume = g0.roi_volume;
 
-    % ── DataQueue 实时推送进度 ──
+    % ========== Stage A: ROI-only 快速筛查 ==========
+    fprintf('\n  ── Stage A: ROI-only 快速筛查 (%d 灰质单元) ──\n', N_roi);
+
+    batch_size = 10000;
+    num_batches = ceil(M / batch_size);
+    fprintf('  分 %d 批 (每批 %d)\n\n', num_batches, batch_size);
+
     dq = parallel.pool.DataQueue;
-    t_start = tic;
+    t_a = tic;
 
     afterEach(dq, @(global_i) ...
         fprintf('  · 进度: %d / %d (%.1f%%) | 已用: %.0f 秒\n', ...
-            global_i, M, global_i / M * 100, toc(t_start)));
+            global_i, M, global_i / M * 100, toc(t_a)));
 
-    % ── CSV: 写入表头 ──
-    csv_path = fullfile(output_root, 'exhaustive_results.csv');
-    fid_csv = fopen(csv_path, 'w');
-    fprintf(fid_csv, 'Fitness,roi_avg,rest_avg,C1E1,C1E2,C2E1,C2E2\n');
-    fclose(fid_csv);
+    fields_roi_constant = parallel.pool.Constant(fields_roi);
+    vols_roi_constant = parallel.pool.Constant(gm_vols_roi);
+    roi_vol_const = parallel.pool.Constant(roi_volume);
 
-    % ── 批式穷举搜索 ──
-    overall_best_fit = -inf;
-    overall_best_idx = 0;
-
-    data_mb = N * N_gm * 3 * 8 / 1e6;
-    fprintf('  → 电场已通过 memmapfile 零拷贝共享 (%.0f MB, 无 per-worker 副本)\n', data_mb);
+    all_scores = zeros(M, 1);
 
     for b = 1:num_batches
         start_idx = (b-1) * batch_size + 1;
         end_idx = min(b * batch_size, M);
         n_in_batch = end_idx - start_idx + 1;
-        fprintf('  批 %d/%d: 评估 %d 个组合...\n', b, num_batches, n_in_batch);
+        fprintf('  批 %d/%d: 筛查 %d 个组合 (ROI-only)...\n', b, num_batches, n_in_batch);
 
-        batch_fitness = zeros(n_in_batch, 1);
-        batch_roi_avg  = zeros(n_in_batch, 1);
-        batch_rest_avg = zeros(n_in_batch, 1);
-        batch_indices  = zeros(n_in_batch, 4);
+        batch_scores = zeros(n_in_batch, 1);
 
         parfor j = 1:n_in_batch
             combo_idx = all_combos(start_idx + j - 1, :);
             i1 = combo_idx(1); i2 = combo_idx(2);
             i3 = combo_idx(3); i4 = combo_idx(4);
 
-            % memmapfile 零拷贝读取（子函数 persistent 各 worker 仅映射一次）
+            Fr = fields_roi_constant.Value;
+            E1 = squeeze(Fr(i1,:,:)) - squeeze(Fr(i2,:,:));
+            E2 = squeeze(Fr(i3,:,:)) - squeeze(Fr(i4,:,:));
+
+            TI = get_maxTI(E1, E2);
+            roi_avg = sum(TI .* vols_roi_constant.Value) / roi_vol_const.Value;
+            batch_scores(j) = roi_avg;
+
+            global_i = start_idx + j - 1;
+            if mod(global_i, 10000) == 0
+                send(dq, global_i);
+            end
+        end
+
+        all_scores(start_idx:end_idx) = batch_scores;
+
+        elapsed = toc(t_a);
+        pct = b / num_batches * 100;
+        eta = elapsed / b * (num_batches - b);
+        fprintf('  ▶ 批 %d/%d (%d%%) | 本批 Top: %.4f V/m | 已用: %.0f 秒 | ETA: %.0f 秒\n', ...
+            b, num_batches, round(pct), max(batch_scores), elapsed, eta);
+    end
+
+    top_k = min(1000, M);
+    [~, sort_idx] = sort(all_scores, 'descend');
+    top_indices = sort_idx(1:top_k);
+    if M > 0
+        fprintf('\n  ✅ Stage A 完成: %d → %d 候选 | Top roi_avg: %.4f V/m | 用时: %.1f 秒\n', ...
+            M, top_k, all_scores(top_indices(1)), toc(t_a));
+    end
+
+    % ========== Stage B: 全脑精确评估 Top K ==========
+    fprintf('\n  ── Stage B: 全脑精确评估 Top %d ──\n', top_k);
+
+    overall_best_fit = -inf;
+    overall_best_idx = 0;
+
+    batch_size_b = 250;
+    num_batches_b = ceil(top_k / batch_size_b);
+
+    csv_path = fullfile(output_root, 'exhaustive_results.csv');
+    fid_csv = fopen(csv_path, 'w');
+    fprintf(fid_csv, 'Fitness,roi_avg,rest_avg,C1E1,C1E2,C2E1,C2E2\n');
+    fclose(fid_csv);
+
+    data_mb = N * N_gm * 3 * 8 / 1e6;
+    fprintf('  → 全脑电场 memmapfile: %.0f MB (仅评估 %d 个候选)\n', data_mb, top_k);
+
+    t_b = tic;
+
+    for b = 1:num_batches_b
+        start_idx = (b-1) * batch_size_b + 1;
+        end_idx = min(b * batch_size_b, top_k);
+        n_in_batch = end_idx - start_idx + 1;
+
+        batch_fitness = zeros(n_in_batch, 1);
+        batch_roi = zeros(n_in_batch, 1);
+        batch_rest = zeros(n_in_batch, 1);
+        batch_idx = zeros(n_in_batch, 4);
+
+        parfor j = 1:n_in_batch
+            combo_idx = all_combos(top_indices(start_idx + j - 1), :);
+            i1 = combo_idx(1); i2 = combo_idx(2);
+            i3 = combo_idx(3); i4 = combo_idx(4);
+
             [E1, E2] = get_field_slices(fields_file, i1, i2, i3, i4, N_gm, N);
             TI = get_maxTI(E1, E2);
 
             g = geo_cache_constant.Value;
-            roi_avg = sum(TI(g.roi_mask) .* g.gm_volumes(g.roi_mask)) / g.roi_volume;
-            rest_avg = sum(TI(g.non_roi_mask) .* g.gm_volumes(g.non_roi_mask)) / g.non_roi_volume;
+            ra = sum(TI(g.roi_mask) .* g.gm_volumes(g.roi_mask)) / g.roi_volume;
+            rast = sum(TI(g.non_roi_mask) .* g.gm_volumes(g.non_roi_mask)) / g.non_roi_volume;
 
-            if ~isnan(roi_avg) && ~isnan(rest_avg) && rest_avg > 1e-12
-                F = roi_avg / rest_avg;
-                penalty = penalty_lambda * max(0, target_strength - roi_avg)^2;
+            if ~isnan(ra) && ~isnan(rast) && rast > 1e-12
+                F = ra / rast;
+                penalty = penalty_lambda * max(0, target_strength - ra)^2;
                 batch_fitness(j) = F - penalty;
             else
                 batch_fitness(j) = -1e6;
             end
-            batch_roi_avg(j) = roi_avg;
-            batch_rest_avg(j) = rest_avg;
-            batch_indices(j, :) = combo_idx;
-
-            % 每 5000 组合推送一次进度
-            global_i = start_idx + j - 1;
-            if mod(global_i, 5000) == 0
-                send(dq, global_i);
-            end
+            batch_roi(j) = ra;
+            batch_rest(j) = rast;
+            batch_idx(j, :) = combo_idx;
         end
 
         % 本批最优
         [max_in_batch, local_idx] = max(batch_fitness);
         if max_in_batch > overall_best_fit
             overall_best_fit = max_in_batch;
-            overall_best_idx = start_idx + local_idx - 1;
+            overall_best_idx = top_indices(start_idx + local_idx - 1);
         end
 
-        % 追加写入本批结果到 CSV
+        % 追加写入 CSV
         fid_csv = fopen(csv_path, 'a');
         for j = 1:n_in_batch
-            c = batch_indices(j, :);
+            c = batch_idx(j, :);
             fprintf(fid_csv, '%.6f,%.6f,%.6f,%s,%s,%s,%s\n', ...
-                batch_fitness(j), batch_roi_avg(j), batch_rest_avg(j), ...
+                batch_fitness(j), batch_roi(j), batch_rest(j), ...
                 electrode_names{c(1)}, electrode_names{c(2)}, ...
                 electrode_names{c(3)}, electrode_names{c(4)});
         end
         fclose(fid_csv);
 
-        elapsed = toc(t_start);
-        pct = b / num_batches * 100;
-        eta = elapsed / b * (num_batches - b);
-
+        elapsed_b = toc(t_b);
         if overall_best_idx > 0
             best_combo = all_combos(overall_best_idx, :);
             best_str = strjoin(electrode_names(best_combo), ',');
         else
             best_str = '—';
         end
-
-        fprintf('  ▶ 批 %d/%d (%d%%) | 最优: %.4f [%s] | 已用: %.0f 秒 | ETA: %.0f 秒\n', ...
-            b, num_batches, round(pct), overall_best_fit, best_str, elapsed, eta);
+        fprintf('  ▶ 批 %d/%d | 当前最优: %.4f [%s] | 已用: %.0f 秒\n', ...
+            b, num_batches_b, overall_best_fit, best_str, elapsed_b);
     end
 
-    % ── 输出结果 ──
-    fprintf('\n');
+    % ── 结果整理 ──
+    total_a = toc(t_a);
+    total_b = toc(t_b);
+    fprintf('\n  ✅ 穷举完成! 总耗时: %.1f 秒 (Stage A: %.0f 秒 + Stage B: %.0f 秒)\n', ...
+        total_a + total_b, total_a, total_b);
+
     if overall_best_idx > 0
         best_idx = all_combos(overall_best_idx, :);
         best_ind = electrode_names(best_idx);
         best_fit = overall_best_fit;
 
-        % 最终详细评估
         [E1, E2] = get_field_slices(fields_file, ...
             best_idx(1), best_idx(2), best_idx(3), best_idx(4), N_gm, N);
         TI = get_maxTI(E1, E2);
@@ -166,8 +224,6 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         best_fit = -inf;
         best_info = struct();
     end
-
-    fprintf('  ✅ 穷举完成! 总耗时: %.1f 秒\n', toc(t_start));
 end
 
 

@@ -129,6 +129,12 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
             fprintf('  写入电场共享文件 (%d 电极 × %d 灰质单元, %.1f GB)...\n', ...
                 N_elec, N_gm, file_gb);
 
+            % 提取 ROI-only 电场矩阵（Stage A 快速筛查用）
+            N_roi = sum(geo_cache.roi_mask);
+            fields_roi = fields(:, geo_cache.roi_mask, :);  % [N_elec, N_roi, 3]
+            fprintf('  ROI-only 电场: [%d, %d, 3] = %.1f MB\n', ...
+                N_elec, N_roi, numel(fields_roi)*8/1e6);
+
             fid = fopen(fields_file, 'wb');
             assert(fid ~= -1, '无法创建电场共享文件: %s', fields_file);
             data = permute(fields, [2, 3, 1]);  % [N_gm, 3, N_elec] 连续布局
@@ -140,8 +146,8 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
             geo_cache_constant = parallel.pool.Constant(geo_cache);
 
             [best_ind, best_fit, best_info] = exhaustive_TI_search(...
-                fields_file, electrode_names, geo_cache_constant, currents, ...
-                target_strength, penalty_lambda, output_root, N_gm, N_elec);
+                fields_file, fields_roi, electrode_names, geo_cache_constant, ...
+                currents, target_strength, penalty_lambda, output_root, N_gm, N_elec);
 
             % 清理共享文件
             try delete(fields_file); end
