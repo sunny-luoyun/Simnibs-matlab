@@ -82,7 +82,7 @@ classdef simnibs < matlab.apps.AppBase
         function remoteSHA = getRemoteVersion(~)
             try
                 url = 'https://gitee.com/api/v5/repos/luoyun-weixi/simnibs-matlab/commits/main';
-                opts = weboptions('Timeout', 5);
+                opts = weboptions('Timeout', 15);
                 data = webread(url, opts);
                 remoteSHA = data.sha;
             catch
