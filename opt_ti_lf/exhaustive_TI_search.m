@@ -25,9 +25,20 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     N = N_elec;
     I = currents(1);
 
-    all_combos = nchoosek(1:N, 4);
+    % 生成所有 4 电极组合，每个组合展开为 3 种配对
+    base_combos = nchoosek(1:N, 4);
+    M_base = size(base_combos, 1);
+    all_combos = zeros(M_base * 3, 4);
+    for i = 1:M_base
+        a = base_combos(i, 1); b = base_combos(i, 2);
+        c = base_combos(i, 3); d = base_combos(i, 4);
+        idx = (i - 1) * 3 + 1;
+        all_combos(idx,   :) = [a, b, c, d];  % (a,b)+(c,d)
+        all_combos(idx+1, :) = [a, c, b, d];  % (a,c)+(b,d)
+        all_combos(idx+2, :) = [a, d, b, c];  % (a,d)+(b,c)
+    end
     M = size(all_combos, 1);
-    fprintf('  电极池: %d 个, 组合数: %d\n', N, M);
+    fprintf('  电极池: %d 个, 4 电极组合: %d, 配对展开: %d\n', N, M_base, M);
 
     % ── 预取 ROI 几何（避免 parfor 反复切片 geo_cache） ──
     g0 = geo_cache_constant.Value;
@@ -91,7 +102,7 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
             b, num_batches, round(pct), max(batch_scores), elapsed, eta);
     end
 
-    top_k = min(1000, M);
+    top_k = min(10000, M);
     [~, sort_idx] = sort(all_scores, 'descend');
     top_indices = sort_idx(1:top_k);
     if M > 0
