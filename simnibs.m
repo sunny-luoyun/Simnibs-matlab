@@ -111,28 +111,56 @@ classdef simnibs < matlab.apps.AppBase
         end
 
         function doUpdate(app, dlg, appDir)
+            btnUpdate = findobj(dlg, 'Text', '更新');
+            if ~isempty(btnUpdate)
+                btnUpdate.Enable = 'off';
+            end
+            drawnow;
             fprintf('正在检查更新...\n');
             if gitUpdate(app, appDir)
                 fprintf('更新成功，重启应用...\n');
                 restartApp(app, dlg);
             else
                 fprintf('更新失败，请检查网络连接后重试。\n');
-                uialert(dlg, '更新失败，请检查网络连接后重试。', '错误', 'Icon', 'error');
+                uialert(dlg, ...
+                    '更新失败，请排查:\n1. 网络连接是否正常\n2. 能否访问 gitee.com\n3. 是否被防火墙/代理拦截', ...
+                    '更新失败', 'Icon', 'error');
             end
         end
 
         function success = gitUpdate(~, appDir)
             try
                 gitUrl = 'https://gitee.com/luoyun-weixi/simnibs-matlab.git';
-                tempDir = tempname;
-                fprintf('正在下载更新包...\n');
-                [status, result] = system(['git clone --depth 1 "', gitUrl, '" "', tempDir, '" 2>&1']);
-                if status ~= 0
-                    error('git clone 失败: %s', strtrim(result));
+
+                [isRepo, ~] = system(['git -C "', appDir, '" rev-parse --git-dir 2>/dev/null']);
+
+                if isRepo == 0
+                    fprintf('正在增量更新...\n');
+                    tStart = tic;
+                    [fetchStatus, fetchResult] = system(['git -C "', appDir, '" fetch --depth 1 "', gitUrl, '" main 2>&1']);
+                    elapsed = toc(tStart);
+                    if fetchStatus ~= 0
+                        error('git fetch 失败 (耗时 %.1f 秒): %s', elapsed, strtrim(fetchResult));
+                    end
+                    fprintf('增量更新完成 (耗时 %.1f 秒)，正在更新文件...\n', elapsed);
+                    [resetStatus, resetResult] = system(['git -C "', appDir, '" reset --hard FETCH_HEAD 2>&1']);
+                    if resetStatus ~= 0
+                        error('git reset 失败: %s', strtrim(resetResult));
+                    end
+                else
+                    tempDir = tempname;
+                    fprintf('正在下载完整更新包...\n');
+                    tStart = tic;
+                    [cloneStatus, cloneResult] = system(['git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 clone --depth 1 "', gitUrl, '" "', tempDir, '" 2>&1']);
+                    elapsed = toc(tStart);
+                    if cloneStatus ~= 0
+                        error('git clone 失败 (耗时 %.1f 秒): %s', elapsed, strtrim(cloneResult));
+                    end
+                    fprintf('下载完成 (耗时 %.1f 秒)，正在复制...\n', elapsed);
+                    copyfile(fullfile(tempDir, '*'), appDir, 'f');
+                    rmdir(tempDir, 's');
                 end
-                fprintf('下载完成，正在复制文件...\n');
-                copyfile(fullfile(tempDir, '*'), appDir, 'f');
-                rmdir(tempDir, 's');
+
                 success = true;
             catch ME
                 fprintf('更新失败: %s\n', ME.message);
