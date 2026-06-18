@@ -158,7 +158,7 @@ function run_TI_lf_optimization(m2m_folder, output_root, mni_target, ...
             fprintf(fid_csv, '# Electrode Dimensions: %.1f x %.1f mm\n', dimensions(1), dimensions(2));
             fprintf(fid_csv, '# Electrode Thickness: %.1f mm\n', thickness);
             fprintf(fid_csv, '# Electrode Pool (%d): %s\n', length(electrode_names), strjoin(electrode_names, ', '));
-            fprintf(fid_csv, '# Search Mode: %s\n', search_mode);
+            fprintf(fid_csv, '# Search Mode: %s (含全部极性配置)\n', search_mode);
             fprintf(fid_csv, '# Target Strength: %.2f V/m\n', target_strength);
             fprintf(fid_csv, '# Penalty Lambda: %.1f\n', penalty_lambda);
             fprintf(fid_csv, '# N_gm: %d, N_elec: %d, N_roi: %d\n', N_gm, N_elec, N_roi);

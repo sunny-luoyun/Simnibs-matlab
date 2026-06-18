@@ -1,9 +1,10 @@
 function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     fields_file, fields_roi, electrode_names, geo_cache_constant, ...
     currents, target_strength, penalty_lambda, output_root, N_gm, N_elec, m2m_folder)
-% 两阶段穷举 TI 搜索：
-%   Stage A — ROI-only 快速筛查（1609 节点），选出 Top 候选
+% 两阶段穷举 TI 搜索（含全部极性配置）：
+%   Stage A — ROI-only 快速筛查，选出 Top 候选
 %   Stage B — 全脑精确评估 Top 候选，保证精度不损失
+%   每个电极组合展开 9 种配置（3 种配对 × 3 种极性）
 %
 % 输入:
 %   fields_file     : 全脑电场二进制 memmapfile ([N_gm, 3, N_elec])
@@ -25,20 +26,29 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     N = N_elec;
     I = currents(1);
 
-    % 生成所有 4 电极组合，每个组合展开为 3 种配对
+    % 生成所有 4 电极组合，每个组合展开为 3 种配对 × 3 种极性 = 9 种配置
     base_combos = nchoosek(1:N, 4);
     M_base = size(base_combos, 1);
-    all_combos = zeros(M_base * 3, 4);
+    all_combos = zeros(M_base * 9, 4);
     for i = 1:M_base
         a = base_combos(i, 1); b = base_combos(i, 2);
         c = base_combos(i, 3); d = base_combos(i, 4);
-        idx = (i - 1) * 3 + 1;
-        all_combos(idx,   :) = [a, b, c, d];  % (a,b)+(c,d)
-        all_combos(idx+1, :) = [a, c, b, d];  % (a,c)+(b,d)
-        all_combos(idx+2, :) = [a, d, b, c];  % (a,d)+(b,c)
+        idx = (i - 1) * 9 + 1;
+        % 配对 1: (a,b)+(c,d) — 3 种极性
+        all_combos(idx,   :) = [a, b, c, d];  % ++
+        all_combos(idx+1, :) = [b, a, c, d];  % -+
+        all_combos(idx+2, :) = [a, b, d, c];  % +-
+        % 配对 2: (a,c)+(b,d) — 3 种极性
+        all_combos(idx+3, :) = [a, c, b, d];  % ++
+        all_combos(idx+4, :) = [c, a, b, d];  % -+
+        all_combos(idx+5, :) = [a, c, d, b];  % +-
+        % 配对 3: (a,d)+(b,c) — 3 种极性
+        all_combos(idx+6, :) = [a, d, b, c];  % ++
+        all_combos(idx+7, :) = [d, a, b, c];  % -+
+        all_combos(idx+8, :) = [a, d, c, b];  % +-
     end
     M = size(all_combos, 1);
-    fprintf('  电极池: %d 个, 4 电极组合: %d, 配对展开: %d\n', N, M_base, M);
+    fprintf('  电极池: %d 个, 4 电极组合: %d, 极性展开: %d\n', N, M_base, M);
 
     % ── 预取 ROI 几何（避免 parfor 反复切片 geo_cache） ──
     g0 = geo_cache_constant.Value;
