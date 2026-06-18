@@ -1,6 +1,6 @@
 function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
     fields_file, fields_roi, electrode_names, geo_cache_constant, ...
-    currents, target_strength, penalty_lambda, output_root, N_gm, N_elec)
+    currents, target_strength, penalty_lambda, output_root, N_gm, N_elec, m2m_folder)
 % 两阶段穷举 TI 搜索：
 %   Stage A — ROI-only 快速筛查（1609 节点），选出 Top 候选
 %   Stage B — 全脑精确评估 Top 候选，保证精度不损失
@@ -169,7 +169,8 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
                 batch_focus_ratio(j) = fr;
                 batch_mod_depth(j) = md;
                 batch_focus_vol(j) = fv;
-                batch_peak_mni(j, :) = g.gm_centers(peak_idx, :);
+                peak_subj = g.gm_centers(peak_idx, :);
+                batch_peak_mni(j, :) = subject2mni_coords(peak_subj, m2m_folder);
             else
                 batch_fitness(j) = -1e6;
                 batch_focus_ratio(j) = 0;
@@ -242,6 +243,7 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         roi_TI = TI(g.roi_mask);
         mod_depth = (max(roi_TI) - min(roi_TI)) / roi_avg;
         peak_center = g.gm_centers(peak_idx, :);
+        peak_mni = subject2mni_coords(peak_center, m2m_folder);
         clear TI g;
 
         best_info = struct();
@@ -250,7 +252,7 @@ function [best_ind, best_fit, best_info] = exhaustive_TI_search(...
         best_info.focus_ratio = focus_ratio * 100;
         best_info.mod_depth = mod_depth;
         best_info.focus_vol_total = focus_vol_total;
-        best_info.peak_mni = peak_center;
+        best_info.peak_mni = peak_mni;
     else
         best_ind = {};
         best_fit = -inf;

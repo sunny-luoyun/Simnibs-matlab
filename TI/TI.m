@@ -216,7 +216,7 @@ classdef TI < matlab.apps.AppBase
             app.ROIXLabel = uilabel(app.UIFigure);
             app.ROIXLabel.HorizontalAlignment = 'right';
             app.ROIXLabel.Position = [31 29 91 22];
-            app.ROIXLabel.Text = '定义ROI坐标   X';
+            app.ROIXLabel.Text = 'MNI坐标    X';
 
             % Create MNI_coordsX
             app.MNI_coordsX = uieditfield(app.UIFigure, 'text');

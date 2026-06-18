@@ -103,7 +103,7 @@ classdef opt_eeg < matlab.apps.AppBase
             app.XEditFieldLabel = uilabel(app.UIFigure);
             app.XEditFieldLabel.HorizontalAlignment = 'right';
             app.XEditFieldLabel.Position = [11 359 77 22];
-            app.XEditFieldLabel.Text = '靶区坐标     X';
+            app.XEditFieldLabel.Text = 'MNI靶区  X';
 
             % Create mni_targetX
             app.mni_targetX = uieditfield(app.UIFigure, 'text');

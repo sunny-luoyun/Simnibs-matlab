@@ -1,5 +1,5 @@
 function [f, info] = eval_individual_lf(individual, fields_constant, elec_to_idx, ...
-    geo_cache, currents, target_str, lambda)
+    geo_cache, currents, target_str, lambda, m2m_folder)
 % 基于预计算电场的 TI 个体适应度评估（查表叠加，毫秒级）
 %
 % 输入:
@@ -43,6 +43,7 @@ function [f, info] = eval_individual_lf(individual, fields_constant, elec_to_idx
         % ========== 峰值 ==========
         [peak_val, peak_idx] = max(TI);
         peak_center = geo_cache.gm_centers(peak_idx, :);
+        peak_mni = subject2mni_coords(peak_center, m2m_folder);
 
         % ========== 适应度 ==========
         if isnan(roi_avg) || isnan(rest_avg) || rest_avg < 1e-12
@@ -50,6 +51,7 @@ function [f, info] = eval_individual_lf(individual, fields_constant, elec_to_idx
             info = struct('roi_avg', NaN, 'rest_avg', NaN, ...
                 'focus_ratio', NaN, 'mod_depth', NaN, ...
                 'focus_vol_total', NaN, 'peak_mni', NaN(1,3));
+            peak_mni = NaN(1,3);
         else
             F = roi_avg / rest_avg;
             penalty = lambda * max(0, target_str - roi_avg)^2;
@@ -77,7 +79,7 @@ function [f, info] = eval_individual_lf(individual, fields_constant, elec_to_idx
             info.focus_ratio     = focus_ratio * 100;
             info.mod_depth       = mod_depth;
             info.focus_vol_total = focus_vol_total;
-            info.peak_mni        = peak_center;
+            info.peak_mni        = peak_mni;
         end
 
     catch ME
@@ -88,6 +90,8 @@ function [f, info] = eval_individual_lf(individual, fields_constant, elec_to_idx
             'focus_vol_total', NaN, 'peak_mni', NaN(1,3));
     end
 end
+
+
 
 
 function idx = get_idx(elec_name, elec_to_idx, fields)
