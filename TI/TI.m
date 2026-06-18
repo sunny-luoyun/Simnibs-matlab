@@ -83,7 +83,7 @@ classdef TI < matlab.apps.AppBase
             app.AEditFieldLabel = uilabel(app.UIFigure);
             app.AEditFieldLabel.HorizontalAlignment = 'right';
             app.AEditFieldLabel.Position = [30 159 67 22];
-            app.AEditFieldLabel.Text = '电流大小(A)';
+            app.AEditFieldLabel.Text = '电流±(A)';
 
             % Create currents
             app.currents = uieditfield(app.UIFigure, 'numeric');
