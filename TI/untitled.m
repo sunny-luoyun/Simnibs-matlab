@@ -1,3 +1,4 @@
+% TI simulation script
 subpath = '/Users/langqin/Desktop/test/m2m_Sub001';
 output_folder = '/Users/langqin/Desktop/test/m2m_Sub001/TI';
 currents = [0.002, -0.002];
